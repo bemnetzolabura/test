@@ -4,7 +4,6 @@ public class Test {
         Scanner input = new Scanner(System.in);
         System.out.print("Enter your score: ");
         double score = input.nextDouble(); 
-
         if (score < 0 || score > 100) {
             System.out.println("Invalid score");
         } else if (score >= 80) {
