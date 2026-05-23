@@ -1,12 +1,9 @@
-import java.util.Scanner;
-
+import java.util.Scanner
 public class Test {
     public static void main(String[] args) {
-
         Scanner input = new Scanner(System.in);
-
         System.out.print("Enter your score: ");
-        double score = input.nextDouble(); // 👈 accepts decimals
+        double score = input.nextDouble(); 
 
         if (score < 0 || score > 100) {
             System.out.println("Invalid score");
