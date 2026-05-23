@@ -15,7 +15,6 @@ public class Test {
         } else {
             System.out.println("Fail");
         }
-
         input.close();
     }
 }
