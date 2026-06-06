@@ -1,6 +1,5 @@
 import java.util.Scanner
 public class Test { 
-    
     public static void main(String[] args) {
         
         Scanner input = new Scanner(System.in);
@@ -19,6 +18,7 @@ public class Test {
             
         } else if (score >= 60) {
             System.out.println("Good");
+            
         } else if (score >= 50) {
             System.out.println("Pass");
         } else {
