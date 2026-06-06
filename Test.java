@@ -22,8 +22,10 @@ public class Test {
         } else if (score >= 50) {
             System.out.println("Pass");
         } else {
+            
             System.out.println("Fail");
         }
+        
         input.close();
     }
 }
