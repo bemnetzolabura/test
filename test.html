@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forge AI Web Builder Agent</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+:root {
+--bg:#0b1120; --panel:#111a2e; --panel2:#0e1626; --line:#1e2a45;
+--text:#e2e8f0; --dim:#8b9bb4; --accent:#38bdf8; --accent2:#818cf8;
+--ok:#4ade80; --err:#f87171; --warn:#fbbf24;
+}
+* { box-sizing:border-box; font-family:'Segoe UI',system-ui,sans-serif; }
+html,body { height:100%; }
+body { margin:0; background:var(--bg); color:var(--text); display:flex; flex-direction:column; }
+
+/* ---------- Header ---------- */
+header {
+display:flex; align-items:center; gap:12px; padding:12px 18px;
+background:linear-gradient(90deg,#0d1526,#101c38); border-bottom:1px solid var(--line);
+}
+.logo { width:34px; height:34px; border-radius:9px;
+background:conic-gradient(from 210deg,var(--accent),var(--accent2),var(--accent));
+display:grid; place-items:center; font-size:18px; }
+h1 { font-size:17px; margin:0; flex:1; letter-spacing:.5px; }
+h1 span { color:var(--accent); }
+.pill { font-size:12px; padding:5px 12px; border-radius:999px; border:1px solid var(--line);
+color:var(--dim); background:var(--panel2); }
+.pill.thinking { color:var(--warn); border-color:var(--warn); }
+.pill.done { color:var(--ok); border-color:var(--ok); }
+.pill.error { color:var(--err); border-color:var(--err); }
+
+/* ---------- Layout ---------- */
+main { flex:1; display:flex; min-height:0; }
+#left { width:390px; min-width:320px; background:var(--panel); border-right:1px solid var(--line);
+display:flex; flex-direction:column; padding:16px; gap:12px; overflow-y:auto; }
+#right { flex:1; display:flex; flex-direction:column; min-width:0; background:var(--panel2); }
+
+label { font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); }
+input,select,textarea,button {
+border:1px solid var(--line); background:var(--panel2); color:var(--text);
+padding:10px 12px; border-radius:9px; font-size:13px; width:100%; outline:none;
+}
+input:focus,textarea:focus,select:focus { border-color:var(--accent); }
+textarea { resize:vertical; min-height:88px; line-height:1.45; }
+button { cursor:pointer; font-weight:600; transition:.15s; }
+button:hover:not(:disabled) { filter:brightness(1.15); }
+button:disabled { opacity:.45; cursor:not-allowed; }
+#build { background:linear-gradient(90deg,var(--accent),var(--accent2)); border:none;
+color:#06121f; padding:12px; font-size:14px; }
+.row { display:flex; gap:8px; }
+.row > * { flex:1; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; }
+.chip { font-size:11.5px; padding:6px 10px; border-radius:999px; cursor:pointer;
+border:1px solid var(--line); color:var(--dim); background:var(--panel2); }
+.chip:hover { color:var(--accent); border-color:var(--accent); }
+
+/* ---------- Agent log ---------- */
+#logWrap { flex:1; border:1px solid var(--line); border-radius:10px; background:var(--panel2);
+padding:10px; overflow-y:auto; min-height:140px; display:flex; flex-direction:column; gap:7px; }
+.msg { font-size:12.5px; line-height:1.5; padding:8px 11px; border-radius:8px; max-width:95%; }
+.msg.user { align-self:flex-end; background:#1d3350; }
+.msg.agent { align-self:flex-start; background:#152238; }
+.msg.sys { align-self:center; color:var(--dim); font-size:11.5px; background:none; padding:2px; }
+.msg .t { color:var(--accent); font-weight:700; }
+
+/* ---------- Right: tabs ---------- */
+.tabs { display:flex; border-bottom:1px solid var(--line); background:var(--panel); }
+.tab { padding:11px 20px; font-size:13px; color:var(--dim); cursor:pointer; border-bottom:2px solid transparent; }
+.tab.active { color:var(--text); border-bottom-color:var(--accent); }
+.tabs .spacer { flex:1; }
+.tabs button { width:auto; margin:auto 10px; padding:7px 14px; font-size:12px;
+background:var(--panel2); }
+
+#preview { flex:1; width:100%; border:none; background:#fff; }
+#codePane { flex:1; display:none; flex-direction:column; min-height:0; }
+#fileTabs { display:flex; gap:2px; padding:8px 8px 0; flex-wrap:wrap; }
+.ftab { font-size:12px; padding:6px 12px; border-radius:7px 7px 0 0; cursor:pointer;
+color:var(--dim); border:1px solid var(--line); border-bottom:none; background:var(--panel); }
+.ftab.active { color:var(--text); background:var(--panel2); }
+#editor { flex:1; margin:0 8px 8px; padding:14px; background:#0a1220; color:#c9d8f0;
+border:1px solid var(--line); border-radius:0 9px 9px 9px; resize:none;
+font-family:'Cascadia Code',Consolas,monospace; font-size:12.5px; line-height:1.55; tab-size:2; }
+.empty { flex:1; display:flex; align-items:center; justify-content:center;
+color:var(--dim); font-size:14px; gap:10px; }
+
+@media (max-width:820px){
+main { flex-direction:column; }
+#left { width:100%; border-right:none; border-bottom:1px solid var(--line); max-height:52vh; }
+}
+</style>
+</head>
+<body>
+
+<header>
+<div class="logo"></div>
+<h1>Forge<span>.AI</span> build anything for the web</h1>
+<div class="pill" id="status"> Idle</div>
+</header>
+
+<main>
+<!-- ============ LEFT: controls ============ -->
+<div id="left">
+<div>
+<label>Provider &amp; Model</label>
+<select id="model">
+<option value="groq:llama-3.3-70b-versatile">Groq Llama 3.3 70B (fast)</option>
+<option value="groq:llama-3.1-8b-instant">Groq Llama 3.1 8B (fastest)</option>
+<option value="gemini:gemini-2.5-flash">Google Gemini 2.5 Flash (smart)</option>
+</select>
+</div>
+<div>
+<label>API Key <span style="text-transform:none;letter-spacing:0">(stored only in your browser)</span></label>
+<input id="key" type="password" placeholder="Paste your free API key">
+</div>
+<div>
+<label>What should I build?</label>
+<textarea id="prompt" placeholder="e.g. A pomodoro timer with dark mode, sound alerts and session history"></textarea>
+</div>
+<div class="chips" id="chips"></div>
+<button id="build" onclick="runAgent()"> Build It</button>
+<div class="row">
+<button onclick="saveEditedCode()" id="applyBtn" style="display:none">Apply code edits</button>
+<button onclick="downloadZip()" id="zipBtn" disabled> Download ZIP</button>
+</div>
+<div id="logWrap">
+<div class="msg sys">Agent ready. Describe what you want and press <b>Build It</b>.</div>
+</div>
+</div>
+
+<!-- ============ RIGHT: preview / code ============ -->
+<div id="right">
+<div class="tabs">
+<div class="tab active" data-tab="preview" onclick="switchTab('preview')"> Preview</div>
+<div class="tab" data-tab="code" onclick="switchTab('code')"> Code</div>
+<div class="spacer"></div>
+<button onclick="refreshPreview()" id="refreshBtn" disabled> Refresh preview</button>
+</div>
+<iframe id="preview" sandbox="allow-scripts allow-forms allow-modals"></iframe>
+<div id="codePane" style="display:none">
+<div class="empty" id="codeEmpty">No files yet build something first</div>
+<div id="fileTabs" style="display:none"></div>
+<textarea id="editor" style="display:none" spellcheck="false"></textarea>
+</div>
+</div>
+</main>
+
+<script>
+/* ================= state ================= */
+let files = {}, activeTab = 'preview', activeFile = null, building = false;
+
+const $ = (id) => document.getElementById(id);
+const status = (text, cls='') => { $('status').textContent = ' ' + text; $('status').className = 'pill ' + cls; };
+const log = (text, cls='agent') => {
+const d = document.createElement('div'); d.className = 'msg ' + cls; d.innerHTML = text;
+$('logWrap').appendChild(d); $('logWrap').scrollTop = 1e9;
+};
+
+const EXAMPLES = [
+'A pomodoro timer with sound alerts',
+'A pixel-art snake game, arrow keys + mobile swipe',
+'A markdown notes app with localStorage',
+'A calculator with history and keyboard support',
+'A landing page for a coffee shop',
+];
+EXAMPLES.forEach(e => {
+const c = document.createElement('div'); c.className = 'chip'; c.textContent = e;
+c.onclick = () => { $('prompt').value = e; }; $('chips').appendChild(c);
+});
+
+/* save key per provider in localStorage */
+$('model').onchange = () => { const p = provider(); $('key').value = localStorage.getItem('forge_'+p) || ''; };
+$('key').onchange = () => localStorage.setItem('forge_'+provider(), $('key').value.trim());
+const provider = () => $('model').value.split(':')[0];
+$('key').value = localStorage.getItem('forge_groq') || '';
+
+/* ================= LLM calls ================= */
+const SYSTEM = `You are Forge, an autonomous senior web developer agent.
+Return ONLY valid JSON, no markdown, no commentary:
+{"files":{"index.html":"...","style.css":"...","app.js":"..."},"summary":"one short line"}
+Rules:
+- Always produce complete, working, runnable code (no placeholders, no TODOs).
+- index.html must load style.css and app.js via normal <link>/<script src> tags.
+- Use only vanilla HTML/CSS/JS (CDN libs allowed if asked). Make it look modern and polished.`;
+
+async function callGroq(modelId, messages, key) {
+const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+method:'POST',
+headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key },
+body: JSON.stringify({ model:modelId, messages, temperature:0.2, max_tokens:8192 })
+});
+if (res.status === 429) throw { rateLimited:true };
+if (!res.ok) throw new Error('Groq API error ' + res.status);
+return (await res.json()).choices[0].message.content;
+}
+
+async function callGemini(modelId, messages, key) {
+const sys = messages[0].content;
+const rest = messages.slice(1).map(m => ({ role: m.role === 'assistant' ? 'model' : 'user',
+parts:[{ text: m.content }] }));
+const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${key}`, {
+method:'POST', headers:{ 'Content-Type':'application/json' },
+body: JSON.stringify({ systemInstruction:{ parts:[{ text: sys }] }, contents: rest,
+generationConfig:{ temperature:0.2, maxOutputTokens:8192 } })
+});
+if (res.status === 429) throw { rateLimited:true };
+if (!res.ok) throw new Error('Gemini API error ' + res.status);
+const data = await res.json();
+return data.candidates[0].content.parts[0].text;
+}
+
+async function callLLM(messages) {
+const [prov, modelId] = $('model').value.split(':');
+const key = $('key').value.trim();
+if (!key) throw new Error('no-key');
+if (prov === 'groq') return await callGroq(modelId, messages, key);
+return await callGemini(modelId, messages, key);
+}
+
+/* ================= agent loop ================= */
+function extractJSON(text) {
+const cleaned = text.replace(/```json|```/g, '').trim();
+const s = cleaned.indexOf('{'), e = cleaned.lastIndexOf('}');
+if (s === -1 || e === -1) throw new Error('parse');
+return JSON.parse(cleaned.slice(s, e + 1));
+}
+
+async function runAgent() {
+if (building) return;
+const task = \$('prompt').value.trim();
+if (!task) { log('Please describe what to build first.', 'sys'); return; }
+if (!\$('key').value.trim()) { log('Paste your free API key first (<b>console.groq.com/keys</b> or <b>aistudio.google.com</b>).', 'sys'); return; }
+
+building = true; \$('build').disabled = true;
+log(' ' + task, 'user');
+const messages = [ { role:'system', content:SYSTEM }, { role:'user', content:task } ];
+
+let success = false;
+for (let round = 1; round <= 3; round++) {
+try {
+status('Thinking', 'thinking');
+log(` Round ${round}: planning & writing code`);
+const raw = await callLLM(messages);
+const out = extractJSON(raw);
+if (!out.files || !out.files['index.html']) throw new Error('parse');
+files = out.files;
+success = true;
+log(` <span class="t">Built:</span> ${out.summary || 'done'}`);
+log(` Files: ${Object.keys(files).join(', ')}`);
+break;
+} catch (e) {
+if (e.message === 'no-key') { log(' Missing API key.', 'sys'); break; }
+if (e.rateLimited) {
+log(' Rate limit hit switch
